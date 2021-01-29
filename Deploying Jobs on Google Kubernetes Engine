@@ -1,0 +1,92 @@
+gcloud auth list
+
+gcloud config list project
+
+#Define and deploy a Job manifest
+export my_zone=us-central1-a
+export my_cluster=standard-cluster-1
+
+source <(kubectl completion bash)
+
+#configure access to your cluster for the kubectl command-line tool
+gcloud container clusters get-credentials $my_cluster --zone $my_zone
+
+git clone https://github.com/GoogleCloudPlatform/training-data-analyst
+
+ln -s ~/training-data-analyst/courses/ak8s/v1.1 ~/ak8s
+
+cd ~/ak8s/Jobs_CronJobs
+
+#yaml file
+
+apiVersion: batch/v1
+kind: Job
+metadata:
+  # Unique key of the Job instance
+  name: example-job
+spec:
+  template:
+    metadata:
+      name: example-job
+    spec:
+      containers:
+      - name: pi
+        image: perl
+        command: ["perl"]
+        args: ["-Mbignum=bpi", "-wle", "print bpi(2000)"]
+      # Do not restart containers after they exit
+      restartPolicy: Never
+      
+kubectl apply -f example-job.yaml
+
+kubectl describe job example-job
+
+kubectl get pods
+
+kubectl get pods
+
+kubectl logs [POD-NAME]
+
+kubectl delete job example-job
+
+
+
+
+#Define and deploy a CronJob manifest
+
+#example-cronjob.yaml
+
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: hello
+spec:
+  schedule: "*/1 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: hello
+            image: busybox
+            args:
+            - /bin/sh
+            - -c
+            - date; echo "Hello, World!"
+          restartPolicy: OnFailure
+
+kubectl apply -f example-cronjob.yaml
+
+kubectl get jobs
+
+kubectl describe job [job_name]
+
+kubectl logs [POD-NAME]
+
+kubectl get jobs
+
+kubectl delete cronjob hello
+
+kubectl get jobs
+
+
