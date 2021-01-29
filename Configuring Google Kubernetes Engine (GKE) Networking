@@ -1,0 +1,97 @@
+#Create and test a private cluster
+
+#Configure a cluster for authorized network master access
+
+#Configure a Cluster network policy
+
+gcloud auth list
+
+gcloud config list project
+
+gcloud container clusters describe private-cluster --region us-central1-a
+
+
+export my_zone=us-central1-a
+export my_cluster=standard-cluster-1
+
+source <(kubectl completion bash)
+
+gcloud container clusters create $my_cluster --num-nodes 3 --enable-ip-alias --zone $my_zone --enable-network-policy
+
+gcloud container clusters get-credentials $my_cluster --zone $my_zone
+
+kubectl run hello-web --labels app=hello \
+  --image=gcr.io/google-samples/hello-app:1.0 --port 8080 --expose
+  
+  git clone https://github.com/GoogleCloudPlatform/training-data-analyst
+  
+  ln -s ~/training-data-analyst/courses/ak8s/v1.1 ~/ak8s
+  cd ~/ak8s/GKE_Networks/
+  
+  #hello-allow-from-foo.yaml
+  kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: hello-allow-from-foo
+spec:
+  policyTypes:
+  - Ingress
+  podSelector:
+    matchLabels:
+      app: hello
+  ingress:
+  - from:
+    - podSelector:
+        matchLabels:
+          app: foo
+
+kubectl apply -f hello-allow-from-foo.yaml
+kubectl get networkpolicy
+
+kubectl run test-1 --labels app=foo --image=alpine --restart=Never --rm --stdin --tty
+
+wget -qO- --timeout=2 http://hello-web:8080
+
+kubectl run test-1 --labels app=other --image=alpine --restart=Never --rm --stdin --tty
+
+wget -qO- --timeout=2 http://hello-web:8080
+
+#foo-allow-to-hello.yaml
+kind: NetworkPolicy
+apiVersion: networking.k8s.io/v1
+metadata:
+  name: foo-allow-to-hello
+spec:
+  policyTypes:
+  - Egress
+  podSelector:
+    matchLabels:
+      app: foo
+  egress:
+  - to:
+    - podSelector:
+        matchLabels:
+          app: hello
+  - to:
+    ports:
+    - protocol: UDP
+      port: 53
+      
+
+kubectl apply -f foo-allow-to-hello.yaml
+kubectl get networkpolicy
+
+kubectl run hello-web-2 --labels app=hello-2 \
+  --image=gcr.io/google-samples/hello-app:1.0 --port 8080 --expose
+ 
+kubectl run test-3 --labels app=foo --image=alpine --restart=Never --rm --stdin --tty
+
+wget -qO- --timeout=2 http://hello-web:8080
+
+wget -qO- --timeout=2 http://hello-web-2:8080
+
+wget -qO- --timeout=2 http://www.google.com
+
+
+
+  
