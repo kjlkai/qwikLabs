@@ -1,0 +1,232 @@
+#Observe Kubernetes DNS in action.
+
+#Define various service types (ClusterIP, NodePort, LoadBalancer) in manifests along with label selectors to connect to existing labeled Pods and deployments, deploy those to a cluster, and test connectivity.
+
+#Deploy an Ingress resource that connects clients to two different services based on the URL path entered.
+
+#Verify Google Cloud network load balancer creation for type=LoadBalancer services.
+
+export my_zone=us-central1-a
+export my_cluster=standard-cluster-1
+
+source <(kubectl completion bash)
+
+gcloud container clusters get-credentials $my_cluster --zone $my_zone
+
+git clone https://github.com/GoogleCloudPlatform/training-data-analyst
+ln -s ~/training-data-analyst/courses/ak8s/v1.1 ~/ak8s
+cd ~/ak8s/GKE_Services/
+
+#dns-demo.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: dns-demo
+spec:
+  selector:
+    name: dns-demo
+  clusterIP: None
+  ports:
+  - name: dns-demo
+    port: 1234
+    targetPort: 1234
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-demo-1
+  labels:
+    name: dns-demo
+spec:
+  hostname: dns-demo-1
+  subdomain: dns-demo
+  containers:
+  - name: nginx
+    image: nginx
+---
+apiVersion: v1
+kind: Pod
+metadata:
+  name: dns-demo-2
+  labels:
+    name: dns-demo
+spec:
+  hostname: dns-demo-2
+  subdomain: dns-demo
+  containers:
+  - name: nginx
+    image: nginx
+
+
+kubectl apply -f dns-demo.yaml
+kubectl get pods
+
+kubectl exec -it dns-demo-1 -- /bin/bash
+apt-get update
+apt-get install -y iputils-ping
+ping dns-demo-2.dns-demo.default.svc.cluster.local
+ping dns-demo.default.svc.cluster.local
+
+#hello-v1.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-v1
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      run: hello-v1
+  template:
+    metadata:
+      labels:
+        run: hello-v1
+        name: hello-v1
+    spec:
+      containers:
+      - image: gcr.io/google-samples/hello-app:1.0
+        name: hello-v1
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+
+cd ~/ak8s/GKE_Services/
+kubectl create -f hello-v1.yaml
+kubectl get deployments
+
+
+#hello-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-svc
+spec:
+  type: ClusterIP
+  selector:
+    name: hello-v1
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+    
+kubectl apply -f ./hello-svc.yaml
+
+kubectl get service hello-svc
+
+curl hello-svc.default.svc.cluster.local
+curl hello-svc.default.svc.cluster.local
+
+#hello-nodeport-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-svc
+spec:
+  type: NodePort
+  selector:
+    name: hello-v1
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+    nodePort: 30100
+    
+kubectl apply -f ./hello-nodeport-svc.yaml
+
+kubectl get service hello-svc
+
+curl hello-svc.default.svc.cluster.local
+
+
+#hello-v2.yaml
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: hello-v2
+spec:
+  replicas: 3
+  selector:
+    matchLabels:
+      run: hello-v2
+  template:
+    metadata:
+      labels:
+        run: hello-v2
+        name: hello-v2
+    spec:
+      containers:
+      - image: gcr.io/google-samples/hello-app:2.0
+        name: hello-v2
+        ports:
+        - containerPort: 8080
+          protocol: TCP
+
+kubectl create -f hello-v2.yaml
+kubectl get deployments
+
+
+#hello-lb-svc.yaml
+apiVersion: v1
+kind: Service
+metadata:
+  name: hello-lb-svc
+spec:
+  type: LoadBalancer
+  loadBalancerIP: 10.10.10.10
+  selector:
+    name: hello-v2
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 8080
+    
+    
+export STATIC_LB=$(gcloud compute addresses describe regional-loadbalancer --region us-central1 --format json | jq -r '.address')
+sed -i "s/10\.10\.10\.10/$STATIC_LB/g" hello-lb-svc.yaml
+
+cat hello-lb-svc.yaml
+kubectl apply -f ./hello-lb-svc.yaml
+
+kubectl get services
+
+curl hello-lb-svc.default.svc.cluster.local
+
+curl [external_IP]
+
+curl hello-lb-svc.default.svc.cluster.local
+
+curl [external_IP]
+
+#hello-ingress.yaml
+apiVersion: app/v1
+kind: Ingress
+metadata:
+  name: hello-ingress
+  annotations:
+    nginx.ingress.kubernetes.io/rewrite-target: /
+    kubernetes.io/ingress.global-static-ip-name: "global-ingress"
+
+spec:
+  rules:
+  - http:
+      Paths:
+     - path: /v1
+        backend:
+          serviceName: hello-svc
+          servicePort: 80
+      - path: /v2
+        backend:
+          serviceName: hello-lb-svc
+          servicePort: 80
+          
+kubectl apply -f hello-ingress.yaml
+
+kubectl describe ingress hello-ingress
+
+curl http://[external_IP]/v1
+
+curl http://[external_IP]/v2
+
+
+
+
