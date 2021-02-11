@@ -1,0 +1,59 @@
+gcloud auth list
+
+gcloud config list project
+
+#Install ApacheBench
+sudo apt-get install apache2-utils
+#Verify that the installation
+ab -V
+
+#Clone the repo
+git clone https://github.com/GoogleCloudPlatform/gke-migration-to-containers.git
+
+cd gke-migration-to-containers
+
+
+#Set your region and zone
+gcloud config set compute/region us-central1
+gcloud config set compute/zone us-central1-a
+
+#edit gke-migration-to-containers > terraform > variables.tf
+#configuration (line 25) and change the machine type from f1-micro to n1-standard-1
+
+#Deployment
+make create
+
+gcloud compute ssh vm-webserver --zone us-central1-a
+#Enter twice
+ps aux
+exit
+
+gcloud compute ssh cos-vm --zone us-central1-a
+#Enter twice
+
+git clone https://github.com/GoogleCloudPlatform/gke-migration-to-containers.git
+cd gke-migration-to-containers/container
+
+sudo docker build -t gcr.io/migration-to-containers/prime-flask:1.0.2 .
+
+ps aux | grep 8080
+sudo kill -9 <YOUR_PORT_NUMBER>
+
+sudo docker run --rm -d --name=appuser -p 8080:8080 gcr.io/migration-to-containers/prime-flask:1.0.2
+ps aux
+
+ls /usr/local/bin/python
+
+sudo docker ps
+sudo docker exec -it $(sudo docker ps |awk '/prime-flask/ {print $1}') ps aux
+
+exit
+
+#go back to cloud shell
+
+gcloud container clusters get-credentials prime-server-cluster
+kubectl get pods
+
+kubectl scale --replicas 3 deployment/prime-server
+
+
